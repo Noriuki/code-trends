@@ -1,6 +1,6 @@
 # CodeTrends
 
-A developer dashboard that shows **trending GitHub repositories**, **popular npm packages**, and **developer ecosystem highlights**. Built with Next.js, TypeScript, and Tailwind CSS.
+Web dashboard that aggregates **GitHub repository trends** and **popular npm packages** (weekly downloads), with a short ecosystem summary. Implemented with Next.js (App Router), TypeScript, and Tailwind CSS against the public GitHub Search API and npm registry.
 
 ## Features
 
@@ -26,50 +26,46 @@ A developer dashboard that shows **trending GitHub repositories**, **popular npm
 ```
 src/
 ├── app/
-│   ├── page.tsx              # Dashboard (SSR)
-│   ├── loading.tsx           # Loading UI (streaming)
-│   ├── layout.tsx            # Root layout
+│   ├── page.tsx              # Dashboard shell + Suspense boundaries
+│   ├── actions.ts            # Server Actions (revalidateTag + clear cache)
+│   ├── _components/          # Async Server Components per section
+│   ├── loading.tsx           # Route-level loading UI
+│   ├── layout.tsx
 │   ├── globals.css
-│   └── api/
-│       ├── github-trending/
-│       │   └── route.ts      # GET /api/github-trending
-│       └── npm-trending/
-│           └── route.ts     # GET /api/npm-trending
-├── components/
-│   ├── RepoCard.tsx          # GitHub repo card
-│   ├── NpmCard.tsx           # npm package card
-│   ├── StatsBar.tsx          # Summary stats
-│   └── EcosystemActivity.tsx # Ecosystem section
+│   └── api/…                 # Route handlers
+├── middleware.ts             # Security headers
+├── components/…
 ├── lib/
-│   ├── cache.ts              # In-memory cache + TTL
-│   ├── github.ts             # GitHub API client
-│   └── npm.ts                # npm registry + downloads API
+│   ├── server-data.ts        # unstable_cache + cache tags
+│   ├── cache-tags.ts
+│   ├── cache.ts
+│   ├── github.ts
+│   └── npm.ts
 └── types/
-    └── index.ts              # Shared types
 ```
 
 ### Data flow
 
-1. **SSR on the homepage**  
-   `app/page.tsx` is an async Server Component. On each request (or after `revalidate`), it calls `fetchTrendingRepos()` and `fetchTrendingNpmPackages()` on the server. Data is fetched once per request and rendered to HTML, so the first paint includes content and is friendly to SEO.
+1. **Streaming + Suspense**  
+   `app/page.tsx` is a synchronous Server Component that wraps **stats**, **GitHub**, **npm**, and **ecosystem** in separate `<Suspense>` boundaries. Each async child loads independently so skeletons can appear while slow APIs resolve.
 
-2. **API routes**  
-   - `GET /api/github-trending?limit=10` — Returns trending GitHub repos (uses internal cache).
-   - `GET /api/npm-trending?limit=12` — Returns popular npm packages with weekly downloads (uses internal cache).
+2. **Tagged Data Cache**  
+   `lib/server-data.ts` wraps fetches with `unstable_cache` and tags (`github-trending`, `npm-trending`). The **Atualizar** button runs the Server Action `refreshTrendingData()`, which calls `revalidateTag` for those tags and clears the in-memory `lib/cache` map, then `router.refresh()` refetches RSC payloads.
 
-   These routes can be used by client-side code or other services; the dashboard itself uses direct server-side calls for SSR.
+3. **API routes**  
+   `GET /api/github-trending` and `GET /api/npm-trending` still use the same lib functions (in-memory cache + `fetch` revalidate). They are optional for clients or tooling; the dashboard page uses `server-data` + Suspense.
 
-3. **Caching**  
-   - **In-memory:** `lib/cache.ts` stores GitHub and npm responses with a TTL (e.g. 30 min for GitHub, 1 hour for npm). Reduces calls to GitHub and npm and keeps responses fast.
-   - **Next.js:** `fetch(..., { next: { revalidate } })` is used where applicable for request-level caching.
-   - **Optional:** You can replace the in-memory cache with Supabase (or Redis) for persistent or multi-instance caching; the interface in `lib/cache.ts` stays the same.
+4. **Caching layers**  
+   - **Next Data Cache:** `unstable_cache` with `revalidate` + tags.  
+   - **In-memory:** `lib/cache.ts` TTL (cleared on manual refresh).  
+   - **fetch:** `next: { revalidate }` on outbound GitHub/npm requests where used.
 
-### SSR benefits
+5. **Middleware**  
+   Adds baseline security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`) on matching routes.
 
-- **SEO** — Dashboard content is in the initial HTML, so search engines see full data.
-- **Fast first load** — No client-side loading spinner for the main data; users see repos and packages immediately.
-- **Stable URLs** — Same URL returns full content; shareable and cacheable by CDNs.
-- **Lower client JS** — No need to ship data-fetching logic for the initial view; only interactivity (e.g. links) is hydrated.
+### Rendering
+
+Main content is built on the server (RSC + Suspense streaming): meaningful HTML early, less client JS for the first paint, stable URLs for sharing the same address.
 
 ## API integration
 
@@ -101,7 +97,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The dashboard loads with server-rendered data.
+Open [http://localhost:3000](http://localhost:3000). Data is fetched on the server when the page renders.
 
 ### Optional: GitHub token
 
@@ -121,14 +117,31 @@ npm run build
 npm start
 ```
 
+## Testing
+
+- **Unit / integration (Vitest)** — Mocks `fetch` to verify GitHub and npm client logic, cache behavior, and API route handlers (`tests/unit/`).
+- **E2E (Playwright)** — Starts `next dev`, checks dashboard sections, footer, header controls, and that API routes return JSON (200 or 500 with `error`).
+
+```bash
+npm test                 # Vitest (once)
+npm run test:watch       # Vitest watch mode
+npx playwright install chromium   # first time only
+npm run test:e2e         # Playwright (needs network for live APIs)
+```
+
+E2E is resilient: if GitHub/npm are unreachable, the UI still shows empty states and API tests accept `500` with an error message.
+
 ## Scripts
 
-| Command       | Description                |
-| ------------- | -------------------------- |
-| `npm run dev` | Start dev server           |
-| `npm run build` | Build for production    |
-| `npm start`   | Start production server    |
-| `npm run lint`| Run ESLint                 |
+| Command            | Description                          |
+| ------------------ | ------------------------------------ |
+| `npm run dev`      | Start dev server                     |
+| `npm run build`    | Build for production                 |
+| `npm start`        | Start production server              |
+| `npm run lint`     | Run ESLint                           |
+| `npm test`         | Run Vitest (integration + API tests) |
+| `npm run test:watch` | Vitest in watch mode               |
+| `npm run test:e2e` | Playwright E2E tests                 |
 
 ## License
 

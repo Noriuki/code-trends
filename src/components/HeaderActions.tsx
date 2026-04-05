@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ThemeToggle } from "./ThemeToggle";
 import { RefreshButton } from "./RefreshButton";
 import { LastUpdated } from "./LastUpdated";
 
-interface HeaderActionsProps {
-  timestamp: number;
-}
+export function HeaderActions() {
+  const [lastRefresh, setLastRefresh] = useState(() => Date.now());
 
-export function HeaderActions({ timestamp }: HeaderActionsProps) {
+  const handleRefreshComplete = useCallback(() => {
+    setLastRefresh(Date.now());
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -25,9 +27,9 @@ export function HeaderActions({ timestamp }: HeaderActionsProps) {
 
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3 sm:mt-0 sm:ml-auto sm:gap-4">
-      <LastUpdated timestamp={timestamp} />
+      <LastUpdated timestamp={lastRefresh} />
       <div className="flex items-center gap-2">
-        <RefreshButton />
+        <RefreshButton onRefreshComplete={handleRefreshComplete} />
         <ThemeToggle />
       </div>
       <span className="hidden text-xs text-zinc-400 sm:inline" title="Atalho de teclado">

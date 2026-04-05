@@ -34,3 +34,8 @@ export const CACHE_TTL = {
   GITHUB: 60 * 30 * 1000,      // 30 min
   NPM: 60 * 60 * 1000,         // 1 hour
 } as const;
+
+/** Clears all in-memory cache entries (useful for tests). */
+export function clearAllCaches(): void {
+  cache.clear();
+}

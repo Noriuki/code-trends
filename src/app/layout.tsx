@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CodeTrends | Developer Dashboard",
-  description: "Trending GitHub repos, popular npm packages, and developer ecosystem highlights.",
+  title: "CodeTrends",
+  description: "GitHub discovery and npm download trends in one place.",
 };
 
 export default function RootLayout({

@@ -1,30 +1,40 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { refreshTrendingData } from "@/app/actions";
 
-export function RefreshButton() {
+interface RefreshButtonProps {
+  onRefreshComplete?: () => void;
+}
+
+export function RefreshButton({ onRefreshComplete }: RefreshButtonProps) {
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const doRefresh = () => {
+  const doRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    router.refresh();
-    setTimeout(() => setIsRefreshing(false), 1500);
-  };
+    try {
+      await refreshTrendingData();
+      router.refresh();
+      onRefreshComplete?.();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 800);
+    }
+  }, [router, onRefreshComplete]);
 
   useEffect(() => {
-    const handler = () => doRefresh();
+    const handler = () => {
+      void doRefresh();
+    };
     window.addEventListener("codetrends-refresh", handler);
     return () => window.removeEventListener("codetrends-refresh", handler);
-  }, []);
-
-  const handleRefresh = () => doRefresh();
+  }, [doRefresh]);
 
   return (
     <button
       type="button"
-      onClick={handleRefresh}
+      onClick={() => void doRefresh()}
       disabled={isRefreshing}
       aria-label="Atualizar dados"
       title="Atualizar dados (R)"
