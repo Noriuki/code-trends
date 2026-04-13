@@ -11,7 +11,6 @@ export async function GET(request: Request) {
     const repos = await fetchTrendingRepos(limit);
     return NextResponse.json({ repos });
   } catch (error) {
-    console.error("[api/github-trending]", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch GitHub trending" },
       { status: 500 }

@@ -11,7 +11,6 @@ export async function GET(request: Request) {
     const packages = await fetchTrendingNpmPackages(limit);
     return NextResponse.json({ packages });
   } catch (error) {
-    console.error("[api/npm-trending]", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch npm trending" },
       { status: 500 }
